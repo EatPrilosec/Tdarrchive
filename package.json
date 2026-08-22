@@ -1,0 +1,30 @@
+{
+  "name": "tdarrchive",
+  "version": "1.0.0",
+  "description": "Tdarr Flow Export, Visualization, and Archival Tool with Flow Tree stitching and high-res screenshot engine",
+  "main": "server/dist/index.js",
+  "scripts": {
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "build:server": "npm --prefix server run build",
+    "build:client": "npm --prefix client run build",
+    "build": "npm run build:client && npm run build:server",
+    "start": "node server/dist/index.js",
+    "install:all": "npm install && npm --prefix server install && npm --prefix client install"
+  },
+  "keywords": [
+    "tdarr",
+    "flow",
+    "archive",
+    "visualization",
+    "export",
+    "diagram",
+    "docker"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

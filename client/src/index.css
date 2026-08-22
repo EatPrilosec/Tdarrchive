@@ -1,0 +1,108 @@
+@import "tailwindcss";
+@import "@xyflow/react/dist/style.css";
+
+/* Base Resets and Styling */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: #0b0f17;
+  color: #f1f5f9;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* React Flow Canvas Customization */
+.react-flow__background {
+  background-color: #0b0f17 !important;
+}
+
+.react-flow__controls {
+  background: rgba(15, 23, 42, 0.85) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 1px solid #334155 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+  overflow: hidden;
+}
+
+.react-flow__controls-button {
+  background: #1e293b !important;
+  border-bottom: 1px solid #334155 !important;
+  color: #cbd5e1 !important;
+  fill: #cbd5e1 !important;
+  width: 32px !important;
+  height: 32px !important;
+}
+
+.react-flow__controls-button:hover {
+  background: #334155 !important;
+  color: #38bdf8 !important;
+  fill: #38bdf8 !important;
+}
+
+.react-flow__minimap {
+  background: rgba(15, 23, 42, 0.85) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 1px solid #334155 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+}
+
+.react-flow__minimap-mask {
+  fill: rgba(2, 6, 23, 0.7) !important;
+}
+
+/* Edge & Connection Styling */
+.react-flow__edge-path {
+  stroke: #475569 !important;
+  stroke-width: 2.5 !important;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: #38bdf8 !important;
+  stroke-width: 3.5 !important;
+}
+
+.edge-cross-flow .react-flow__edge-path {
+  stroke: #06b6d4 !important;
+  stroke-width: 3 !important;
+  stroke-dasharray: 6 6 !important;
+  animation: dash 1s linear infinite;
+}
+
+@keyframes dash {
+  to { stroke-dashoffset: -12; }
+}
+
+/* Utility Animations */
+@keyframes pulseGlow {
+  0%, 100% { opacity: 0.8; filter: drop-shadow(0 0 8px rgba(6, 182, 212, 0.4)); }
+  50% { opacity: 1; filter: drop-shadow(0 0 16px rgba(6, 182, 212, 0.8)); }
+}
+
+.animate-glow {
+  animation: pulseGlow 2.5s infinite ease-in-out;
+}

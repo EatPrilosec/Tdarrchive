@@ -1,0 +1,20 @@
+services:
+  tdarrchive:
+    image: ghcr.io/${GITHUB_REPOSITORY:-munch/tdarrchive}:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tdarrchive
+    restart: unless-stopped
+    ports:
+      - "8267:8267"
+    environment:
+      - PORT=8267
+      - NODE_ENV=production
+      - TDARR_URL=http://tdarr-server:8265
+      - TDARR_API_KEY=
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8267/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
