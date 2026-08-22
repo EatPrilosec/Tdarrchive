@@ -1,4 +1,5 @@
 import puppeteer, { Browser } from 'puppeteer';
+import { existsSync } from 'fs';
 import { HtmlExporter } from './htmlExporter.js';
 import { TdarrFlow, CompositeFlowGraph } from '../types/tdarr.js';
 
@@ -9,13 +10,32 @@ export interface ScreenshotOptions {
   transparentBackground?: boolean;
 }
 
+const POSSIBLE_CHROME_PATHS = [
+  process.env.PUPPETEER_EXECUTABLE_PATH,
+  '/usr/bin/chromium',
+  '/usr/bin/chromium-browser',
+  '/usr/bin/google-chrome',
+  '/usr/bin/google-chrome-stable',
+  '/snap/bin/chromium',
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+];
+
 export class ScreenshotRenderer {
   private browserPromise: Promise<Browser> | null = null;
   private htmlExporter = new HtmlExporter();
 
+  private findChromePath(): string | undefined {
+    for (const p of POSSIBLE_CHROME_PATHS) {
+      if (p && existsSync(p)) {
+        return p;
+      }
+    }
+    return undefined;
+  }
+
   private async getBrowser(): Promise<Browser> {
     if (!this.browserPromise) {
-      const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
+      const executablePath = this.findChromePath();
       this.browserPromise = puppeteer.launch({
         headless: true,
         executablePath,
@@ -59,51 +79,34 @@ export class ScreenshotRenderer {
       });
 
       await page.setContent(htmlContent, {
-        waitUntil: 'domcontentloaded',
+        waitUntil: 'load',
         timeout: 15000
       });
 
-      // Wait for rendering to settle
-      await page.evaluate(() => {
-        // Trigger fitView
-        if (typeof (window as any).fitView === 'function') {
-          (window as any).fitView();
-        }
-      });
+      // Allow animations / layout to settle
+      await new Promise(r => setTimeout(r, 400));
 
-      await new Promise(r => setTimeout(r, 600));
+      // Capture element or viewport
+      const canvasEl = await page.$('#viewport');
+      let imageBuffer: Buffer;
 
-      // Calculate the bounding box of all node cards & clusters
-      const boundingBox = await page.evaluate(() => {
-        const viewport = document.getElementById('viewport');
-        if (!viewport) return { x: 0, y: 0, width: 1920, height: 1080 };
+      if (canvasEl) {
+        imageBuffer = (await canvasEl.screenshot({
+          type: format === 'jpeg' ? 'jpeg' : 'png',
+          quality: format === 'jpeg' ? (options.quality || 90) : undefined,
+          omitBackground: options.transparentBackground || false
+        })) as Buffer;
+      } else {
+        imageBuffer = (await page.screenshot({
+          type: format === 'jpeg' ? 'jpeg' : 'png',
+          quality: format === 'jpeg' ? (options.quality || 90) : undefined,
+          fullPage: true
+        })) as Buffer;
+      }
 
-        const rect = viewport.getBoundingClientRect();
-        return {
-          x: rect.left,
-          y: rect.top,
-          width: rect.width,
-          height: rect.height
-        };
-      });
-
-      const screenshot = await page.screenshot({
-        type: format,
-        clip: boundingBox,
-        omitBackground: options.transparentBackground ?? false
-      });
-
-      return Buffer.from(screenshot);
+      return imageBuffer;
     } finally {
-      await page.close();
-    }
-  }
-
-  public async close(): Promise<void> {
-    if (this.browserPromise) {
-      const browser = await this.browserPromise;
-      await browser.close();
-      this.browserPromise = null;
+      await page.close().catch(() => {});
     }
   }
 }

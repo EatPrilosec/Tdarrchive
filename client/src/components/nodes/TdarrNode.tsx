@@ -132,20 +132,18 @@ export const TdarrNode: React.FC<NodeProps> = memo(({ data, selected }) => {
       className="relative flex items-center gap-2 select-none cursor-pointer transition-all"
     >
       {/* Top Target Handle (Incoming) */}
-      {!isInput && (
-        <Handle
-          type="target"
-          position={Position.Top}
-          isConnectable={false}
-          style={{
-            background: '#77DD77',
-            width: 7,
-            height: 7,
-            border: '1.5px solid #19181e',
-            top: -4
-          }}
-        />
-      )}
+      <Handle
+        type="target"
+        position={Position.Top}
+        isConnectable={false}
+        style={{
+          background: '#77DD77',
+          width: 7,
+          height: 7,
+          border: '1.5px solid #19181e',
+          top: -4
+        }}
+      />
 
       {/* Icon Badge */}
       <div className="shrink-0 flex items-center justify-center">

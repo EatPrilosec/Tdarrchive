@@ -122,7 +122,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         return;
       }
 
-      // Server-side High-DPI headless Chromium rendering (for 4x Ultra-HD)
+      // 1. High-Res Server-Side Capture (Full Flow Canvas)
       const res = await fetch('/api/export/image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -135,20 +135,31 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         })
       });
 
-      if (!res.ok) throw new Error('Image rendering failed');
-      const blob = await res.blob();
-      const filename = `${(flow?.name || 'flow_screenshot').replace(/[^a-zA-Z0-9_-]/g, '_')}.${imageFormat}`;
-      downloadBlob(blob, filename);
+      if (res.ok) {
+        const blob = await res.blob();
+        const safeTitle = (viewMode === 'tree' ? 'Tdarr_Flow_Tree_MegaViewer' : (flow?.name || 'tdarr_flow')).replace(/[^a-zA-Z0-9_-]/g, '_');
+        downloadBlob(blob, `${safeTitle}.${imageFormat}`);
+        triggerSuccessConfetti();
+        setExporting(false);
+        return;
+      }
+
+      throw new Error(`Server returned status ${res.status}`);
     } catch (err) {
-      console.error(err);
-      alert('Failed to generate high-res image. Trying client fallback...');
+      console.warn('Server screenshot failed, executing client fallback:', err);
       const flowElement = document.querySelector('.react-flow__viewport') as HTMLElement;
       if (flowElement) {
-        const dataUrl = await toPng(flowElement, { backgroundColor: '#0b0f17' });
+        const fn = imageFormat === 'jpeg' ? toJpeg : toPng;
+        const dataUrl = await fn(flowElement, {
+          backgroundColor: '#161922',
+          pixelRatio: Math.min(imageScale, 2)
+        });
         const a = document.createElement('a');
         a.href = dataUrl;
-        a.download = `flow_fallback.png`;
+        const safeTitle = (viewMode === 'tree' ? 'Tdarr_Flow_Tree' : (flow?.name || 'tdarr_flow')).replace(/[^a-zA-Z0-9_-]/g, '_');
+        a.download = `${safeTitle}.${imageFormat}`;
         a.click();
+        triggerSuccessConfetti();
       }
     } finally {
       setExporting(false);
