@@ -17,6 +17,7 @@ import {
 
 const STORAGE_KEY_CONN = 'tdarrchive_conn_config';
 const STORAGE_KEY_FLOWS = 'tdarrchive_cached_flows';
+const STORAGE_KEY_TREE_LAYOUT = 'tdarrchive_tree_layout_positions';
 
 const standalone = typeof window !== 'undefined' ? (window as any).TDARRCHIVE_STANDALONE_DATA : null;
 
@@ -85,18 +86,30 @@ export const App: React.FC = () => {
     };
   });
 
-  // Modals
+  // Modals & Async state
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Active Flow Object
   const activeFlow = useMemo(() => {
     return flows.find(f => f._id === activeFlowId) || flows[0] || null;
   }, [flows, activeFlowId]);
 
-  // Build Composite Flow Tree whenever flows change
-  const refreshFlowTree = useCallback(async (currentFlows: TdarrFlow[]) => {
+  // Helper to read cached tree positions
+  const getSavedTreeLayout = (): Record<string, { x: number; y: number }> => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_TREE_LAYOUT);
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // Ignore
+    }
+    return {};
+  };
+
+  // Build Composite Flow Tree whenever flows change with cached positions preserved
+  const refreshFlowTree = useCallback(async (currentFlows: TdarrFlow[], ignoreSavedLayout = false) => {
     if (currentFlows.length === 0) {
       setCompositeGraph(null);
       return;
@@ -115,7 +128,48 @@ export const App: React.FC = () => {
       });
       if (res.ok) {
         const data = await res.json();
-        setCompositeGraph(data.compositeGraph);
+        const baseGraph: CompositeFlowGraph = data.compositeGraph;
+
+        if (!ignoreSavedLayout) {
+          const savedLayout = getSavedTreeLayout();
+          if (Object.keys(savedLayout).length > 0) {
+            const updatedNodes = baseGraph.nodes.map((n: any) => {
+              if (n.type === 'groupNode') {
+                const flowId = n.data?.flowId || n.id.replace('group-', '');
+                if (savedLayout[flowId]) {
+                  return { ...n, position: savedLayout[flowId] };
+                }
+              }
+              return n;
+            });
+
+            const updatedClusters = (baseGraph.clusters || []).map((c: any) => {
+              if (savedLayout[c.flowId]) {
+                const pos = savedLayout[c.flowId];
+                return {
+                  ...c,
+                  bounds: {
+                    ...c.bounds,
+                    minX: pos.x,
+                    minY: pos.y,
+                    maxX: pos.x + c.bounds.width,
+                    maxY: pos.y + c.bounds.height
+                  }
+                };
+              }
+              return c;
+            });
+
+            setCompositeGraph({
+              ...baseGraph,
+              nodes: updatedNodes,
+              clusters: updatedClusters
+            });
+            return;
+          }
+        }
+
+        setCompositeGraph(baseGraph);
       }
     } catch (err) {
       console.warn('Failed to build flow tree from backend:', err);
@@ -132,6 +186,57 @@ export const App: React.FC = () => {
       }
     }
   }, [flows, refreshFlowTree]);
+
+  // Handle updating composite graph when user repositions flows on canvas
+  const handleUpdateCompositeGraph = (updatedGraph: CompositeFlowGraph) => {
+    setCompositeGraph(updatedGraph);
+    if (!isStandalone) {
+      const layoutMap = getSavedTreeLayout();
+      updatedGraph.nodes.forEach((n: any) => {
+        if (n.type === 'groupNode') {
+          const flowId = n.data?.flowId || n.id.replace('group-', '');
+          if (n.position) {
+            layoutMap[flowId] = { x: n.position.x, y: n.position.y };
+          }
+        }
+      });
+      try {
+        localStorage.setItem(STORAGE_KEY_TREE_LAYOUT, JSON.stringify(layoutMap));
+      } catch {
+        // Storage full
+      }
+    }
+  };
+
+  // Reset tree layout back to default topological columns
+  const handleResetTreeLayout = () => {
+    try {
+      localStorage.removeItem(STORAGE_KEY_TREE_LAYOUT);
+    } catch {}
+    refreshFlowTree(flows, true);
+  };
+
+  // Re-fetch flows directly from Tdarr server without resetting existing flow positions
+  const handleRefreshFlows = async () => {
+    if (!connection.url || !connection.isConnected) return;
+    setIsRefreshing(true);
+    try {
+      const flowsRes = await fetch('/api/tdarr/flows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: connection.url, apiKey: connection.apiKey })
+      });
+      const flowsData = await flowsRes.json();
+      if (flowsData.success && Array.isArray(flowsData.flows) && flowsData.flows.length > 0) {
+        setFlows(flowsData.flows);
+        refreshFlowTree(flowsData.flows, false);
+      }
+    } catch (err) {
+      console.error('Failed to refresh flows from Tdarr:', err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // Handle saving connection config and fetching flows from live Tdarr server
   const handleSaveConnection = async (url: string, apiKey: string) => {
@@ -163,6 +268,7 @@ export const App: React.FC = () => {
         if (flowsData.success && Array.isArray(flowsData.flows) && flowsData.flows.length > 0) {
           setFlows(flowsData.flows);
           setActiveFlowId(flowsData.flows[0]._id);
+          refreshFlowTree(flowsData.flows, false);
         }
       }
     } catch (err) {
@@ -179,7 +285,6 @@ export const App: React.FC = () => {
   // Jump to specific flow when clicking a goToFlow node
   const handleJumpToFlow = (targetFlowId: string) => {
     if (viewMode === 'tree') {
-      // In tree mode, highlight target group
       setSelectedNode(null);
     } else {
       setActiveFlowId(targetFlowId);
@@ -193,7 +298,7 @@ export const App: React.FC = () => {
     setFlows(importedFlows);
     setActiveFlowId(importedFlows[0]._id);
     setSelectedNode(null);
-    refreshFlowTree(importedFlows);
+    refreshFlowTree(importedFlows, false);
   };
 
   // Reset to sample flows
@@ -201,7 +306,7 @@ export const App: React.FC = () => {
     setFlows(CLIENT_SAMPLE_FLOWS);
     setActiveFlowId(CLIENT_SAMPLE_FLOWS[0]._id);
     setSelectedNode(null);
-    refreshFlowTree(CLIENT_SAMPLE_FLOWS);
+    refreshFlowTree(CLIENT_SAMPLE_FLOWS, false);
   };
 
   return (
@@ -214,6 +319,8 @@ export const App: React.FC = () => {
           activeFlow={activeFlow}
           flowsCount={flows.length}
           isStandalone={isStandalone}
+          isRefreshing={isRefreshing}
+          onRefreshFlows={handleRefreshFlows}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onOpenExport={() => setIsExportOpen(true)}
           onOpenImport={() => setIsImportOpen(true)}
@@ -247,8 +354,8 @@ export const App: React.FC = () => {
             isTreeMode={viewMode === 'tree'}
             onSelectNode={setSelectedNode}
             selectedNodeId={selectedNode?.id || null}
-            onResetTreeLayout={!isStandalone ? () => refreshFlowTree(flows) : undefined}
-            onUpdateCompositeGraph={(updated) => setCompositeGraph(updated)}
+            onResetTreeLayout={!isStandalone ? handleResetTreeLayout : undefined}
+            onUpdateCompositeGraph={handleUpdateCompositeGraph}
           />
         </main>
 

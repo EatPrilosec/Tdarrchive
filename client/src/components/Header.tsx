@@ -7,7 +7,8 @@ import {
   Workflow,
   Sparkles,
   Server,
-  PackageCheck
+  PackageCheck,
+  RefreshCw
 } from 'lucide-react';
 import { TdarrConnectionConfig, ViewMode, TdarrFlow } from '../types/flow';
 
@@ -17,6 +18,8 @@ interface HeaderProps {
   activeFlow: TdarrFlow | null;
   flowsCount: number;
   isStandalone?: boolean;
+  isRefreshing?: boolean;
+  onRefreshFlows?: () => void;
   onOpenSettings: () => void;
   onOpenExport: () => void;
   onOpenImport: () => void;
@@ -29,6 +32,8 @@ export const Header: React.FC<HeaderProps> = ({
   activeFlow,
   flowsCount,
   isStandalone = false,
+  isRefreshing = false,
+  onRefreshFlows,
   onOpenSettings,
   onOpenExport,
   onOpenImport,
@@ -116,6 +121,19 @@ export const Header: React.FC<HeaderProps> = ({
                   : 'Tdarr Offline (Samples)'}
               </span>
             </button>
+
+            {/* Refresh Flows from Tdarr */}
+            {connection.isConnected && onRefreshFlows && (
+              <button
+                onClick={onRefreshFlows}
+                disabled={isRefreshing}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#161b22] hover:bg-[#21262d] border border-[#30363d] text-slate-300 hover:text-white rounded-md text-xs font-medium transition-colors disabled:opacity-50"
+                title="Re-grab latest flows from Tdarr without resetting custom megaflow layout"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 text-cyan-400 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <span>{isRefreshing ? 'Syncing...' : 'Refresh Flows'}</span>
+              </button>
+            )}
 
             {/* Samples Button */}
             <button
