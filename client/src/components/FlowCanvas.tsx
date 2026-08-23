@@ -253,26 +253,22 @@ const CanvasInner: React.FC<FlowCanvasProps> = ({
         />
       </ReactFlow>
 
-      {/* Floating Toolbar for Flow Tree Mode */}
-      {isTreeMode && (
+      {/* Floating Toolbar for Flow Tree Mode (Live Web UI only) */}
+      {isTreeMode && onResetTreeLayout && (
         <div className="absolute top-4 left-6 flex items-center gap-2 bg-[#121620]/90 backdrop-blur-md border border-[#2d3748] px-3 py-1.5 rounded-lg shadow-xl z-20">
           <div className="flex items-center gap-1.5 text-xs text-sky-300 font-medium">
             <Move className="w-3.5 h-3.5 text-sky-400" />
             <span>Drag flow header badges to shape layout</span>
           </div>
-          {onResetTreeLayout && (
-            <>
-              <div className="h-3.5 w-px bg-[#2d3748]" />
-              <button
-                onClick={onResetTreeLayout}
-                className="flex items-center gap-1 px-2 py-0.5 bg-[#1e2433] hover:bg-[#2d3748] text-slate-300 hover:text-white rounded text-[11px] font-medium transition-colors"
-                title="Reset to default topological column layout"
-              >
-                <RotateCcw className="w-3 h-3" />
-                <span>Reset Layout</span>
-              </button>
-            </>
-          )}
+          <div className="h-3.5 w-px bg-[#2d3748]" />
+          <button
+            onClick={onResetTreeLayout}
+            className="flex items-center gap-1 px-2 py-0.5 bg-[#1e2433] hover:bg-[#2d3748] text-slate-300 hover:text-white rounded text-[11px] font-medium transition-colors"
+            title="Reset to default topological column layout"
+          >
+            <RotateCcw className="w-3 h-3" />
+            <span>Reset Layout</span>
+          </button>
         </div>
       )}
     </div>

@@ -206,36 +206,40 @@ export const App: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[#0b0e14] text-slate-100 overflow-hidden font-sans select-none">
-      {/* Top Header Bar */}
-      <Header
-        connection={connection}
-        viewMode={viewMode}
-        activeFlow={activeFlow}
-        flowsCount={flows.length}
-        isStandalone={isStandalone}
-        onOpenSettings={() => setIsSettingsOpen(true)}
-        onOpenExport={() => setIsExportOpen(true)}
-        onOpenImport={() => setIsImportOpen(true)}
-        onLoadSamples={handleLoadSamples}
-      />
+      {/* Top Header Bar (Hidden in standalone HTML export) */}
+      {!isStandalone && (
+        <Header
+          connection={connection}
+          viewMode={viewMode}
+          activeFlow={activeFlow}
+          flowsCount={flows.length}
+          isStandalone={isStandalone}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenExport={() => setIsExportOpen(true)}
+          onOpenImport={() => setIsImportOpen(true)}
+          onLoadSamples={handleLoadSamples}
+        />
+      )}
 
       {/* Main Workspace */}
       <div className="flex-1 flex overflow-hidden relative">
-        {/* Left Sidebar */}
-        <Sidebar
-          flows={flows}
-          activeFlowId={activeFlowId}
-          viewMode={viewMode}
-          onSelectFlow={handleSelectFlow}
-          onSetViewMode={(mode) => {
-            setViewMode(mode);
-            setSelectedNode(null);
-          }}
-          onOpenImportModal={() => setIsImportOpen(true)}
-          onLoadSamples={handleLoadSamples}
-        />
+        {/* Left Sidebar (Hidden in standalone HTML export) */}
+        {!isStandalone && (
+          <Sidebar
+            flows={flows}
+            activeFlowId={activeFlowId}
+            viewMode={viewMode}
+            onSelectFlow={handleSelectFlow}
+            onSetViewMode={(mode) => {
+              setViewMode(mode);
+              setSelectedNode(null);
+            }}
+            onOpenImportModal={() => setIsImportOpen(true)}
+            onLoadSamples={handleLoadSamples}
+          />
+        )}
 
-        {/* Center Flow Canvas */}
+        {/* Center Flow Canvas - Full Screen in Standalone View */}
         <main className="flex-1 h-full relative bg-[#0b0e14]">
           <FlowCanvas
             flow={activeFlow}
@@ -243,7 +247,7 @@ export const App: React.FC = () => {
             isTreeMode={viewMode === 'tree'}
             onSelectNode={setSelectedNode}
             selectedNodeId={selectedNode?.id || null}
-            onResetTreeLayout={() => refreshFlowTree(flows)}
+            onResetTreeLayout={!isStandalone ? () => refreshFlowTree(flows) : undefined}
             onUpdateCompositeGraph={(updated) => setCompositeGraph(updated)}
           />
         </main>
