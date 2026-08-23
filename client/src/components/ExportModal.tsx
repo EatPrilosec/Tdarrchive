@@ -89,78 +89,68 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     }
   };
 
-  // 2. Export Image (Screenshot)
+  // 2. Export Image (Screenshot) - Direct High-Res Client Capture of the live React Flow canvas
   const handleExportImage = async () => {
     setExporting(true);
     try {
-      const flowElement = document.querySelector('.react-flow__viewport') as HTMLElement;
+      const flowContainer = document.querySelector('.react-flow') as HTMLElement;
+      if (!flowContainer) throw new Error('React Flow container not found');
 
-      // Direct client-side SVG or Canvas capture
-      if (imageFormat === 'svg' && flowElement) {
-        const dataUrl = await toSvg(flowElement, { backgroundColor: '#0b0f17' });
-        const a = document.createElement('a');
-        a.href = dataUrl;
-        a.download = `${(flow?.name || 'tdarr_flow').replace(/[^a-zA-Z0-9_-]/g, '_')}.svg`;
-        a.click();
-        triggerSuccessConfetti();
-        setExporting(false);
-        return;
-      }
+      const safeTitle = (viewMode === 'tree' ? (compositeGraph?.name || 'Tdarr_Flow_Tree_MegaViewer') : (flow?.name || 'tdarr_flow')).replace(/[^a-zA-Z0-9_-]/g, '_');
 
-      if (flowElement && imageScale <= 2) {
-        const fn = imageFormat === 'jpeg' ? toJpeg : toPng;
-        const dataUrl = await fn(flowElement, {
-          backgroundColor: '#0b0f17',
-          pixelRatio: imageScale
+      if (imageFormat === 'svg') {
+        const dataUrl = await toSvg(flowContainer, {
+          backgroundColor: '#161922',
+          filter: (node) => {
+            return !node.classList?.contains('react-flow__controls');
+          }
         });
         const a = document.createElement('a');
         a.href = dataUrl;
-        a.download = `${(flow?.name || 'tdarr_flow').replace(/[^a-zA-Z0-9_-]/g, '_')}.${imageFormat}`;
+        a.download = `${safeTitle}.svg`;
         a.click();
         triggerSuccessConfetti();
         setExporting(false);
         return;
       }
 
-      // 1. High-Res Server-Side Capture (Full Flow Canvas)
-      const res = await fetch('/api/export/image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          flow: viewMode === 'single' ? flow : undefined,
-          flows: viewMode === 'tree' ? flows : undefined,
-          compositeGraph: viewMode === 'tree' ? compositeGraph : undefined,
-          isTreeMode: viewMode === 'tree',
-          scale: imageScale,
-          format: imageFormat
-        })
+      const fn = imageFormat === 'jpeg' ? toJpeg : toPng;
+      const dataUrl = await fn(flowContainer, {
+        backgroundColor: '#161922',
+        pixelRatio: imageScale,
+        filter: (node) => {
+          return !node.classList?.contains('react-flow__controls');
+        }
       });
 
-      if (res.ok) {
-        const blob = await res.blob();
-        const safeTitle = (viewMode === 'tree' ? 'Tdarr_Flow_Tree_MegaViewer' : (flow?.name || 'tdarr_flow')).replace(/[^a-zA-Z0-9_-]/g, '_');
-        downloadBlob(blob, `${safeTitle}.${imageFormat}`);
-        triggerSuccessConfetti();
-        setExporting(false);
-        return;
-      }
-
-      throw new Error(`Server returned status ${res.status}`);
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = `${safeTitle}.${imageFormat}`;
+      a.click();
+      triggerSuccessConfetti();
     } catch (err) {
-      console.warn('Server screenshot failed, executing client fallback:', err);
-      const flowElement = document.querySelector('.react-flow__viewport') as HTMLElement;
-      if (flowElement) {
-        const fn = imageFormat === 'jpeg' ? toJpeg : toPng;
-        const dataUrl = await fn(flowElement, {
-          backgroundColor: '#161922',
-          pixelRatio: Math.min(imageScale, 2)
+      console.error('Client image export failed, trying server fallback:', err);
+      try {
+        const res = await fetch('/api/export/image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            flow: viewMode === 'single' ? flow : undefined,
+            flows: viewMode === 'tree' ? flows : undefined,
+            compositeGraph: viewMode === 'tree' ? compositeGraph : undefined,
+            isTreeMode: viewMode === 'tree',
+            scale: imageScale,
+            format: imageFormat
+          })
         });
-        const a = document.createElement('a');
-        a.href = dataUrl;
-        const safeTitle = (viewMode === 'tree' ? 'Tdarr_Flow_Tree' : (flow?.name || 'tdarr_flow')).replace(/[^a-zA-Z0-9_-]/g, '_');
-        a.download = `${safeTitle}.${imageFormat}`;
-        a.click();
-        triggerSuccessConfetti();
+        if (res.ok) {
+          const blob = await res.blob();
+          const safeTitle = (viewMode === 'tree' ? 'Tdarr_Flow_Tree_MegaViewer' : (flow?.name || 'tdarr_flow')).replace(/[^a-zA-Z0-9_-]/g, '_');
+          downloadBlob(blob, `${safeTitle}.${imageFormat}`);
+          triggerSuccessConfetti();
+        }
+      } catch (serverErr) {
+        console.error('Server export failed too:', serverErr);
       }
     } finally {
       setExporting(false);

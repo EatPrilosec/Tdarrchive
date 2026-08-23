@@ -18,9 +18,17 @@ import {
 const STORAGE_KEY_CONN = 'tdarrchive_conn_config';
 const STORAGE_KEY_FLOWS = 'tdarrchive_cached_flows';
 
+const standalone = typeof window !== 'undefined' ? (window as any).TDARRCHIVE_STANDALONE_DATA : null;
+
 export const App: React.FC = () => {
+  const isStandalone = Boolean(standalone);
+
   // State: Flows
   const [flows, setFlows] = useState<TdarrFlow[]>(() => {
+    if (standalone) {
+      if (standalone.flows && Array.isArray(standalone.flows)) return standalone.flows;
+      if (standalone.flow) return [standalone.flow];
+    }
     try {
       const cached = localStorage.getItem(STORAGE_KEY_FLOWS);
       if (cached) {
@@ -34,15 +42,36 @@ export const App: React.FC = () => {
   });
 
   const [activeFlowId, setActiveFlowId] = useState<string | null>(() => {
+    if (standalone) {
+      if (standalone.activeFlowId) return standalone.activeFlowId;
+      if (standalone.flow) return standalone.flow._id;
+      if (standalone.flows && standalone.flows[0]) return standalone.flows[0]._id;
+    }
     return flows.length > 0 ? flows[0]._id : null;
   });
 
   const [selectedNode, setSelectedNode] = useState<TdarrFlowNode | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>('single');
-  const [compositeGraph, setCompositeGraph] = useState<CompositeFlowGraph | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    if (standalone) {
+      if (standalone.viewMode) return standalone.viewMode;
+      if (standalone.isTreeMode || standalone.compositeGraph) return 'tree';
+    }
+    return 'single';
+  });
+  const [compositeGraph, setCompositeGraph] = useState<CompositeFlowGraph | null>(() => {
+    if (standalone && standalone.compositeGraph) return standalone.compositeGraph;
+    return null;
+  });
 
   // State: Connection
   const [connection, setConnection] = useState<TdarrConnectionConfig>(() => {
+    if (standalone) {
+      return {
+        url: 'Standalone Viewer',
+        apiKey: '',
+        isConnected: true
+      };
+    }
     try {
       const saved = localStorage.getItem(STORAGE_KEY_CONN);
       if (saved) return JSON.parse(saved);
@@ -73,6 +102,11 @@ export const App: React.FC = () => {
       return;
     }
 
+    if (standalone && standalone.compositeGraph && currentFlows === standalone.flows) {
+      setCompositeGraph(standalone.compositeGraph);
+      return;
+    }
+
     try {
       const res = await fetch('/api/export/tree', {
         method: 'POST',
@@ -89,11 +123,13 @@ export const App: React.FC = () => {
   }, [activeFlowId]);
 
   useEffect(() => {
-    refreshFlowTree(flows);
-    try {
-      localStorage.setItem(STORAGE_KEY_FLOWS, JSON.stringify(flows));
-    } catch {
-      // Storage full or quota exceeded
+    if (!standalone) {
+      refreshFlowTree(flows);
+      try {
+        localStorage.setItem(STORAGE_KEY_FLOWS, JSON.stringify(flows));
+      } catch {
+        // Storage full or quota exceeded
+      }
     }
   }, [flows, refreshFlowTree]);
 
@@ -110,16 +146,14 @@ export const App: React.FC = () => {
       const newConfig: TdarrConnectionConfig = {
         url,
         apiKey,
-        isConnected: testData.success,
-        serverVersion: testData.serverVersion,
-        lastTested: new Date().toISOString()
+        isConnected: testData.success === true,
+        lastSynced: new Date().toISOString()
       };
 
       setConnection(newConfig);
       localStorage.setItem(STORAGE_KEY_CONN, JSON.stringify(newConfig));
 
       if (testData.success) {
-        // Fetch all flows
         const flowsRes = await fetch('/api/tdarr/flows', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -133,62 +167,66 @@ export const App: React.FC = () => {
       }
     } catch (err) {
       console.error('Connection error:', err);
-      throw err;
     }
   };
 
-  const handleImportFlows = (newFlows: TdarrFlow[]) => {
-    setFlows(prev => {
-      const merged = [...newFlows, ...prev.filter(p => !newFlows.some(n => n._id === p._id))];
-      return merged;
-    });
-    if (newFlows.length > 0) {
-      setActiveFlowId(newFlows[0]._id);
+  // Switch active flow and select node in single view
+  const handleSelectFlow = (flowId: string) => {
+    setActiveFlowId(flowId);
+    setSelectedNode(null);
+  };
+
+  // Jump to specific flow when clicking a goToFlow node
+  const handleJumpToFlow = (targetFlowId: string) => {
+    if (viewMode === 'tree') {
+      // In tree mode, highlight target group
+      setSelectedNode(null);
+    } else {
+      setActiveFlowId(targetFlowId);
+      setSelectedNode(null);
     }
   };
 
+  // Import JSON flows
+  const handleImportFlows = (importedFlows: TdarrFlow[]) => {
+    if (importedFlows.length === 0) return;
+    setFlows(importedFlows);
+    setActiveFlowId(importedFlows[0]._id);
+    setSelectedNode(null);
+    refreshFlowTree(importedFlows);
+  };
+
+  // Reset to sample flows
   const handleLoadSamples = () => {
     setFlows(CLIENT_SAMPLE_FLOWS);
     setActiveFlowId(CLIENT_SAMPLE_FLOWS[0]._id);
     setSelectedNode(null);
-  };
-
-  const handleJumpToFlow = (targetFlowId: string) => {
-    const target = flows.find(f => f._id === targetFlowId || f.name.toLowerCase() === targetFlowId.toLowerCase());
-    if (target) {
-      setActiveFlowId(target._id);
-      setViewMode('single');
-      setSelectedNode(null);
-    } else {
-      alert(`Target flow "${targetFlowId}" not found in currently loaded flows.`);
-    }
+    refreshFlowTree(CLIENT_SAMPLE_FLOWS);
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-[#0b0f17] text-slate-100 overflow-hidden font-sans">
-      {/* Top Navigation Bar */}
+    <div className="flex flex-col h-screen w-screen bg-[#0b0e14] text-slate-100 overflow-hidden font-sans select-none">
+      {/* Top Header Bar */}
       <Header
         connection={connection}
         viewMode={viewMode}
         activeFlow={activeFlow}
         flowsCount={flows.length}
+        isStandalone={isStandalone}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenExport={() => setIsExportOpen(true)}
         onOpenImport={() => setIsImportOpen(true)}
         onLoadSamples={handleLoadSamples}
       />
 
-      {/* Main Workspace Area */}
+      {/* Main Workspace */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Left Sidebar */}
         <Sidebar
           flows={flows}
           activeFlowId={activeFlowId}
-          onSelectFlow={(id) => {
-            setActiveFlowId(id);
-            setSelectedNode(null);
-          }}
           viewMode={viewMode}
+          onSelectFlow={handleSelectFlow}
           onSetViewMode={(mode) => {
             setViewMode(mode);
             setSelectedNode(null);

@@ -6,7 +6,8 @@ import {
   Layers,
   Workflow,
   Sparkles,
-  Server
+  Server,
+  PackageCheck
 } from 'lucide-react';
 import { TdarrConnectionConfig, ViewMode, TdarrFlow } from '../types/flow';
 
@@ -15,6 +16,7 @@ interface HeaderProps {
   viewMode: ViewMode;
   activeFlow: TdarrFlow | null;
   flowsCount: number;
+  isStandalone?: boolean;
   onOpenSettings: () => void;
   onOpenExport: () => void;
   onOpenImport: () => void;
@@ -26,6 +28,7 @@ export const Header: React.FC<HeaderProps> = ({
   viewMode,
   activeFlow,
   flowsCount,
+  isStandalone = false,
   onOpenSettings,
   onOpenExport,
   onOpenImport,
@@ -84,56 +87,65 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Action Buttons & Status */}
       <div className="flex items-center gap-2.5">
-        {/* Connection Badge */}
-        <button
-          onClick={onOpenSettings}
-          className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-medium border transition-all ${
-            connection.isConnected
-              ? 'bg-emerald-950/40 border-emerald-800/80 text-emerald-400 hover:bg-emerald-950/60'
-              : 'bg-[#161b22] border-[#30363d] text-slate-400 hover:text-slate-200 hover:bg-[#1f242c]'
-          }`}
-          title="Click to configure Tdarr IP & API Key"
-        >
-          <span
-            className={`w-2 h-2 rounded-full ${
-              connection.isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'
-            }`}
-          />
-          <Server className="w-3.5 h-3.5" />
-          <span>
-            {connection.isConnected
-              ? `Connected: ${connection.url}`
-              : 'Tdarr Offline (Samples)'}
-          </span>
-        </button>
+        {isStandalone ? (
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-950/40 border border-cyan-800/60 text-cyan-300 rounded-md text-xs font-medium">
+            <PackageCheck className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Standalone Portable Viewer</span>
+          </div>
+        ) : (
+          <>
+            {/* Connection Badge */}
+            <button
+              onClick={onOpenSettings}
+              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-medium border transition-all ${
+                connection.isConnected
+                  ? 'bg-emerald-950/40 border-emerald-800/80 text-emerald-400 hover:bg-emerald-950/60'
+                  : 'bg-[#161b22] border-[#30363d] text-slate-400 hover:text-slate-200 hover:bg-[#1f242c]'
+              }`}
+              title="Click to configure Tdarr IP & API Key"
+            >
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  connection.isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'
+                }`}
+              />
+              <Server className="w-3.5 h-3.5" />
+              <span>
+                {connection.isConnected
+                  ? `Connected: ${connection.url}`
+                  : 'Tdarr Offline (Samples)'}
+              </span>
+            </button>
 
-        {/* Samples Button */}
-        <button
-          onClick={onLoadSamples}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#161b22] hover:bg-[#21262d] border border-[#30363d] text-slate-300 hover:text-white rounded-md text-xs font-medium transition-colors"
-          title="Reload built-in sample flow tree"
-        >
-          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-          <span>Samples</span>
-        </button>
+            {/* Samples Button */}
+            <button
+              onClick={onLoadSamples}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#161b22] hover:bg-[#21262d] border border-[#30363d] text-slate-300 hover:text-white rounded-md text-xs font-medium transition-colors"
+              title="Reload built-in sample flow tree"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>Samples</span>
+            </button>
 
-        {/* Import Button */}
-        <button
-          onClick={onOpenImport}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#161b22] hover:bg-[#21262d] border border-[#30363d] text-slate-300 hover:text-white rounded-md text-xs font-medium transition-colors"
-        >
-          <UploadCloud className="w-3.5 h-3.5 text-sky-400" />
-          <span>Import JSON</span>
-        </button>
+            {/* Import Button */}
+            <button
+              onClick={onOpenImport}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#161b22] hover:bg-[#21262d] border border-[#30363d] text-slate-300 hover:text-white rounded-md text-xs font-medium transition-colors"
+            >
+              <UploadCloud className="w-3.5 h-3.5 text-sky-400" />
+              <span>Import JSON</span>
+            </button>
 
-        {/* Settings Button */}
-        <button
-          onClick={onOpenSettings}
-          className="p-1.5 bg-[#161b22] hover:bg-[#21262d] border border-[#30363d] text-slate-300 hover:text-white rounded-md text-xs transition-colors"
-          title="Tdarr Connection & Settings"
-        >
-          <Settings className="w-4 h-4" />
-        </button>
+            {/* Settings Button */}
+            <button
+              onClick={onOpenSettings}
+              className="p-1.5 bg-[#161b22] hover:bg-[#21262d] border border-[#30363d] text-slate-300 hover:text-white rounded-md text-xs transition-colors"
+              title="Tdarr Connection & Settings"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          </>
+        )}
 
         {/* Export Button */}
         <button

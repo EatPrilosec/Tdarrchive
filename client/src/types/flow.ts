@@ -72,6 +72,7 @@ export interface TdarrConnectionConfig {
   isConnected: boolean;
   serverVersion?: string;
   lastTested?: string;
+  lastSynced?: string;
 }
 
 export type ViewMode = 'single' | 'tree';
