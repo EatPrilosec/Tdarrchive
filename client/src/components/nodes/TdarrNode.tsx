@@ -6,7 +6,8 @@ import {
   Cog,
   ArrowRight,
   AlertTriangle,
-  Play
+  Play,
+  Code2
 } from 'lucide-react';
 
 export const TdarrNode: React.FC<NodeProps> = memo(({ data, selected }) => {
@@ -26,7 +27,16 @@ export const TdarrNode: React.FC<NodeProps> = memo(({ data, selected }) => {
   // 4. Go To Flow Node (Green / Emerald outline with arrow)
   const isGoTo = pluginName === 'gotoflow' || nameLower.includes('go to');
 
-  // 5. Condition / Check Node (Amber outline with ?)
+  // 5. Custom JS / Custom Function Node (4 outputs, code icon)
+  const isCustomJs = pluginName === 'customfunction' ||
+                     pluginName === 'customplugin' ||
+                     pluginName === 'customscript' ||
+                     pluginName === 'runscript' ||
+                     pluginName === 'runcustomplugin' ||
+                     nameLower.includes('custom js') ||
+                     nameLower.includes('custom function');
+
+  // 6. Condition / Check Node (Amber outline with ?)
   const isCheck = pluginName.startsWith('check') ||
                   pluginName.includes('decider') ||
                   pluginName.includes('filter') ||
@@ -35,8 +45,10 @@ export const TdarrNode: React.FC<NodeProps> = memo(({ data, selected }) => {
                   nameLower.includes('is mkv') ||
                   nameLower.includes('show or movie');
 
-  // 6. Resolution Checker (9 outputs)
+  // 7. Multi-output checkers & actions
   const isMultiRes = pluginName === 'checkvideoresolution';
+  const is3Output = pluginName === 'comparefilesizeratio' || pluginName === 'checkfilemedium';
+  const is2OutputAction = pluginName === 'runclassictranscodeplugin' || pluginName === 'runclassicplugin';
 
   // Determine card style & icon
   let borderColor = '#22c55e'; // default action green
@@ -105,6 +117,10 @@ export const TdarrNode: React.FC<NodeProps> = memo(({ data, selected }) => {
     borderColor = '#10b981';
     boxShadow = '0 0 10px rgba(16, 185, 129, 0.35)';
     icon = <ArrowRight className="w-3.5 h-3.5 text-emerald-400" />;
+  } else if (isCustomJs) {
+    borderColor = '#10b981';
+    boxShadow = '0 0 10px rgba(16, 185, 129, 0.35)';
+    icon = <Code2 className="w-3.5 h-3.5 text-emerald-400" />;
   } else if (isCheck) {
     borderColor = '#f59e0b';
     boxShadow = '0 0 10px rgba(245, 158, 11, 0.35)';
@@ -125,8 +141,8 @@ export const TdarrNode: React.FC<NodeProps> = memo(({ data, selected }) => {
         boxShadow: selected ? '0 0 14px rgba(56, 189, 248, 0.7)' : boxShadow,
         borderRadius: '5px',
         padding: '5px 9px',
-        minWidth: '130px',
-        maxWidth: '280px',
+        minWidth: isCustomJs ? '160px' : isMultiRes ? '220px' : '130px',
+        maxWidth: '300px',
         opacity: data.fpEnabled === false ? 0.5 : 1
       }}
       className="relative flex items-center gap-2 select-none cursor-pointer transition-all"
@@ -191,6 +207,7 @@ export const TdarrNode: React.FC<NodeProps> = memo(({ data, selected }) => {
               position={Position.Bottom}
               id={String(num)}
               isConnectable={false}
+              title={`Output ${num}`}
               style={{
                 left: `${(num / 10) * 100}%`,
                 background: '#77DD77',
@@ -202,15 +219,59 @@ export const TdarrNode: React.FC<NodeProps> = memo(({ data, selected }) => {
             />
           ))}
         </>
-      ) : isCheck ? (
-        // Condition check: Output 1 (True = Green, left 30%), Output 2 (False = Red, right 70%)
+      ) : isCustomJs ? (
+        // 4-output Custom JS / Custom Function Node
+        <>
+          {[1, 2, 3, 4].map((num) => (
+            <Handle
+              key={num}
+              type="source"
+              position={Position.Bottom}
+              id={String(num)}
+              isConnectable={false}
+              title={`Output ${num}`}
+              style={{
+                left: `${(num / 5) * 100}%`,
+                background: '#77DD77',
+                width: 7,
+                height: 7,
+                border: '1.5px solid #19181e',
+                bottom: -4
+              }}
+            />
+          ))}
+        </>
+      ) : is3Output ? (
+        // 3-output node
+        <>
+          {[1, 2, 3].map((num) => (
+            <Handle
+              key={num}
+              type="source"
+              position={Position.Bottom}
+              id={String(num)}
+              isConnectable={false}
+              title={`Output ${num}`}
+              style={{
+                left: `${(num / 4) * 100}%`,
+                background: '#77DD77',
+                width: 7,
+                height: 7,
+                border: '1.5px solid #19181e',
+                bottom: -4
+              }}
+            />
+          ))}
+        </>
+      ) : (isCheck || is2OutputAction) ? (
+        // 2-output condition check: Output 1 (True = Green, left 30%), Output 2 (False = Red, right 70%)
         <>
           <Handle
             type="source"
             position={Position.Bottom}
             id="1"
             isConnectable={false}
-            title="True (1)"
+            title="True / Success (1)"
             style={{
               left: '30%',
               background: '#77DD77',
@@ -225,10 +286,10 @@ export const TdarrNode: React.FC<NodeProps> = memo(({ data, selected }) => {
             position={Position.Bottom}
             id="2"
             isConnectable={false}
-            title="False (2)"
+            title="False / Pass (2)"
             style={{
               left: '70%',
-              background: '#FF6961',
+              background: isCheck ? '#FF6961' : '#77DD77',
               width: 7,
               height: 7,
               border: '1.5px solid #19181e',
@@ -237,12 +298,13 @@ export const TdarrNode: React.FC<NodeProps> = memo(({ data, selected }) => {
           />
         </>
       ) : (
-        // Standard Action: Output 1 (Center 50%)
+        // Standard 1-output Action (Center 50%)
         <Handle
           type="source"
           position={Position.Bottom}
           id="1"
           isConnectable={false}
+          title="Output 1"
           style={{
             left: '50%',
             background: '#77DD77',
