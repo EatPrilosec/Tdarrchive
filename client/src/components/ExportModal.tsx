@@ -37,6 +37,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   );
   const [imageScale, setImageScale] = useState<number>(2);
   const [imageFormat, setImageFormat] = useState<'png' | 'jpeg' | 'svg'>('png');
+  const [matchViewport, setMatchViewport] = useState(false);
   const [includeScreenshotsInZip, setIncludeScreenshotsInZip] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [exportSuccess, setExportSuccess] = useState(false);
@@ -60,22 +61,22 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
-    document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
     URL.revokeObjectURL(url);
     triggerSuccessConfetti();
   };
 
-  // 1. Export JSON
+  // 1. Export Flow JSON
   const handleExportJson = async (exportAll: boolean) => {
     setExporting(true);
     try {
-      const payload = exportAll ? { flows } : { flow };
       const res = await fetch('/api/export/json', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          flow: exportAll ? undefined : flow,
+          flows: exportAll ? flows : undefined
+        })
       });
       const blob = await res.blob();
       const filename = exportAll
@@ -89,37 +90,92 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     }
   };
 
-  // 2. Export Image (Screenshot) - Direct High-Res Client Capture of the live React Flow canvas
+  // 2. Export Image (Screenshot) - Auto-cropped tight bounds with zero dead space and native 1:1 scale
   const handleExportImage = async () => {
     setExporting(true);
     try {
+      const flowViewport = document.querySelector('.react-flow__viewport') as HTMLElement;
       const flowContainer = document.querySelector('.react-flow') as HTMLElement;
-      if (!flowContainer) throw new Error('React Flow container not found');
+      if (!flowViewport || !flowContainer) throw new Error('React Flow container not found');
 
       const safeTitle = (viewMode === 'tree' ? (compositeGraph?.name || 'Tdarr_Flow_Tree_MegaViewer') : (flow?.name || 'tdarr_flow')).replace(/[^a-zA-Z0-9_-]/g, '_');
 
-      if (imageFormat === 'svg') {
-        const dataUrl = await toSvg(flowContainer, {
+      // If matching current viewport view (user explicitly checked the box)
+      if (matchViewport) {
+        const fn = imageFormat === 'svg' ? toSvg : imageFormat === 'jpeg' ? toJpeg : toPng;
+        const dataUrl = await fn(flowContainer, {
           backgroundColor: '#161922',
-          filter: (node) => {
-            return !node.classList?.contains('react-flow__controls');
-          }
+          pixelRatio: imageScale,
+          filter: (node) => !node.classList?.contains('react-flow__controls') && !node.classList?.contains('react-flow__minimap')
         });
         const a = document.createElement('a');
         a.href = dataUrl;
-        a.download = `${safeTitle}.svg`;
+        a.download = `${safeTitle}.${imageFormat}`;
         a.click();
         triggerSuccessConfetti();
-        setExporting(false);
         return;
       }
 
-      const fn = imageFormat === 'jpeg' ? toJpeg : toPng;
-      const dataUrl = await fn(flowContainer, {
+      // DEFAULT: Auto-crop to exact flow bounds with 0 dead space and 100% native scale!
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+      if (viewMode === 'tree' && compositeGraph) {
+        (compositeGraph.nodes || []).forEach(n => {
+          const isGroup = n.type === 'groupNode';
+          const px = n.position?.x ?? 0;
+          const py = n.position?.y ?? 0;
+          const w = isGroup ? (n.style?.width ?? 300) : 230;
+          const h = isGroup ? (n.style?.height ?? 150) : 55;
+
+          if (!isGroup && n.parentId) {
+            const parent = compositeGraph.nodes.find(p => p.id === n.parentId);
+            const parentX = parent?.position?.x ?? 0;
+            const parentY = parent?.position?.y ?? 0;
+            minX = Math.min(minX, parentX + px);
+            minY = Math.min(minY, parentY + py);
+            maxX = Math.max(maxX, parentX + px + w);
+            maxY = Math.max(maxY, parentY + py + h);
+          } else {
+            minX = Math.min(minX, px);
+            minY = Math.min(minY, py);
+            maxX = Math.max(maxX, px + w);
+            maxY = Math.max(maxY, py + h);
+          }
+        });
+      } else if (flow) {
+        const plugins = flow.flowPlugins || flow.nodes || [];
+        plugins.forEach((p, idx) => {
+          const px = p.position?.x ?? (100 + (idx % 3) * 260);
+          const py = p.position?.y ?? (120 + Math.floor(idx / 3) * 120);
+          minX = Math.min(minX, px);
+          minY = Math.min(minY, py);
+          maxX = Math.max(maxX, px + 240);
+          maxY = Math.max(maxY, py + 55);
+        });
+      }
+
+      if (!isFinite(minX) || !isFinite(minY)) {
+        minX = 0; minY = 0; maxX = 1200; maxY = 800;
+      }
+
+      // Add a clean, consistent 32px padding around the flow
+      const pad = 32;
+      const cropWidth = Math.ceil(maxX - minX + pad * 2);
+      const cropHeight = Math.ceil(maxY - minY + pad * 2);
+
+      const fn = imageFormat === 'svg' ? toSvg : imageFormat === 'jpeg' ? toJpeg : toPng;
+      const dataUrl = await fn(flowViewport, {
         backgroundColor: '#161922',
+        width: cropWidth,
+        height: cropHeight,
+        style: {
+          width: `${cropWidth}px`,
+          height: `${cropHeight}px`,
+          transform: `translate(${-(minX - pad)}px, ${-(minY - pad)}px) scale(1)`
+        },
         pixelRatio: imageScale,
         filter: (node) => {
-          return !node.classList?.contains('react-flow__controls');
+          return !node.classList?.contains('react-flow__controls') && !node.classList?.contains('react-flow__minimap');
         }
       });
 
@@ -129,28 +185,24 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       a.click();
       triggerSuccessConfetti();
     } catch (err) {
-      console.error('Client image export failed, trying server fallback:', err);
+      console.error('Image capture error:', err);
+      // Fallback
       try {
-        const res = await fetch('/api/export/image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            flow: viewMode === 'single' ? flow : undefined,
-            flows: viewMode === 'tree' ? flows : undefined,
-            compositeGraph: viewMode === 'tree' ? compositeGraph : undefined,
-            isTreeMode: viewMode === 'tree',
-            scale: imageScale,
-            format: imageFormat
-          })
-        });
-        if (res.ok) {
-          const blob = await res.blob();
-          const safeTitle = (viewMode === 'tree' ? 'Tdarr_Flow_Tree_MegaViewer' : (flow?.name || 'tdarr_flow')).replace(/[^a-zA-Z0-9_-]/g, '_');
-          downloadBlob(blob, `${safeTitle}.${imageFormat}`);
+        const flowContainer = document.querySelector('.react-flow') as HTMLElement;
+        if (flowContainer) {
+          const fn = imageFormat === 'svg' ? toSvg : imageFormat === 'jpeg' ? toJpeg : toPng;
+          const dataUrl = await fn(flowContainer, {
+            backgroundColor: '#161922',
+            pixelRatio: imageScale
+          });
+          const a = document.createElement('a');
+          a.href = dataUrl;
+          a.download = `flow_screenshot.${imageFormat}`;
+          a.click();
           triggerSuccessConfetti();
         }
-      } catch (serverErr) {
-        console.error('Server export failed too:', serverErr);
+      } catch (fallbackErr) {
+        console.error('Fallback export failed:', fallbackErr);
       }
     } finally {
       setExporting(false);
@@ -417,7 +469,20 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                 </div>
               </div>
 
-              <div className="pt-2">
+              {/* Viewport vs Auto-Crop Option */}
+              <label className="flex items-center gap-2.5 text-slate-300 text-[11px] cursor-pointer select-none bg-[#0b0e14] border border-[#21262d] rounded-lg p-2.5 hover:border-slate-500 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={matchViewport}
+                  onChange={(e) => setMatchViewport(e.target.checked)}
+                  className="rounded border-[#2d3748] bg-[#161c28] text-sky-500 focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5"
+                />
+                <span className="leading-tight">
+                  Match current Web UI zoom & pan <span className="text-slate-400 font-normal">(Default: OFF &mdash; auto-crops full flow tightly with 0 dead space and 100% native scale)</span>
+                </span>
+              </label>
+
+              <div className="pt-1">
                 <button
                   onClick={handleExportImage}
                   disabled={exporting}
