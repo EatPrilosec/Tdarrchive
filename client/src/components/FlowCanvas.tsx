@@ -221,6 +221,8 @@ const CanvasInner: React.FC<FlowCanvasProps> = ({
         nodesConnectable={false}
         nodesFocusable={false}
         elementsSelectable={true}
+        panOnDrag={true}
+        selectionOnDrag={false}
         defaultEdgeOptions={{
           type: 'smoothstep',
           style: { stroke: '#cbd5e1', strokeWidth: 1.5 }

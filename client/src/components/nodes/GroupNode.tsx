@@ -16,11 +16,11 @@ export const GroupNode: React.FC<NodeProps> = memo(({ data, selected }) => {
         borderColor: color,
         borderWidth: selected ? 2.5 : 2,
         borderStyle: 'dashed',
-        backgroundColor: 'rgba(15, 23, 42, 0.45)',
+        backgroundColor: 'rgba(15, 23, 42, 0.35)',
         boxShadow: selected ? `0 0 24px ${color}50` : '0 8px 30px rgba(0,0,0,0.5)',
         borderRadius: 16
       }}
-      className="relative group transition-all"
+      className="relative group transition-all pointer-events-none"
     >
       {/* Draggable Cluster Header Badge */}
       <div
@@ -29,7 +29,7 @@ export const GroupNode: React.FC<NodeProps> = memo(({ data, selected }) => {
           top: -14,
           left: 20,
         }}
-        className="flow-drag-handle absolute px-3 py-1.5 rounded-lg text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-black/80 cursor-grab active:cursor-grabbing hover:brightness-110 select-none z-30 transition-transform active:scale-95"
+        className="flow-drag-handle absolute px-3 py-1.5 rounded-lg text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-black/80 cursor-grab active:cursor-grabbing hover:brightness-110 select-none z-30 transition-transform active:scale-95 pointer-events-auto"
         title="Drag to reposition this entire flow"
       >
         <GripVertical className="w-3.5 h-3.5 opacity-80" />
