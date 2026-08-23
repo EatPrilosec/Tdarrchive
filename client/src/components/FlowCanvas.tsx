@@ -82,6 +82,10 @@ const CanvasInner: React.FC<FlowCanvasProps> = ({
           sourceHandle: e.sourceHandle != null ? String(e.sourceHandle) : '1',
           targetHandle: e.targetHandle != null ? String(e.targetHandle) : undefined,
           label: isCross ? e.label : undefined,
+          labelStyle: isCross ? { fill: '#38bdf8', fontWeight: 700, fontSize: 11, fontFamily: 'Inter, sans-serif' } : undefined,
+          labelBgStyle: isCross ? { fill: '#0d1117', fillOpacity: 0.95, stroke: '#0284c7', strokeWidth: 1.5, rx: 6, ry: 6 } : undefined,
+          labelBgPadding: [8, 4] as [number, number],
+          labelBgBorderRadius: 6,
           type: 'smoothstep',
           animated: animationsEnabled && isCross,
           style: {
