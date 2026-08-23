@@ -200,30 +200,36 @@ export class TreeBuilder {
         const plugins = flow.flowPlugins || flow.nodes || [];
         const edges = flow.flowEdges || flow.edges || [];
 
-        // Calculate flow's local internal bounding box
+        // Calculate flow's local internal bounding box accurately
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         plugins.forEach(p => {
           if (p.position) {
             minX = Math.min(minX, p.position.x);
             minY = Math.min(minY, p.position.y);
-            maxX = Math.max(maxX, p.position.x + 300);
-            maxY = Math.max(maxY, p.position.y + 200);
+            maxX = Math.max(maxX, p.position.x + 220); // standard card width
+            maxY = Math.max(maxY, p.position.y + 46);  // standard card height
           }
         });
 
         if (minX === Infinity) {
-          minX = 0; minY = 0; maxX = 800; maxY = 600;
+          minX = 0; minY = 0; maxX = 300; maxY = 150;
         }
 
         const flowInternalWidth = maxX - minX;
         const flowInternalHeight = maxY - minY;
-        const clusterWidth = Math.max(flowInternalWidth + 120, 500);
-        const clusterHeight = Math.max(flowInternalHeight + 140, 350);
+
+        // Clean, balanced padding around the flow cluster (eliminating empty dead space)
+        const padX = 36;
+        const padTop = 44;
+        const padBottom = 28;
+
+        const clusterWidth = Math.max(flowInternalWidth + padX * 2, 280);
+        const clusterHeight = Math.max(flowInternalHeight + padTop + padBottom, 120);
 
         maxColumnWidth = Math.max(maxColumnWidth, clusterWidth);
 
-        const flowNodeOffsetX = globalXOffset + 60 - minX;
-        const flowNodeOffsetY = columnYOffset + 80 - minY;
+        const flowNodeOffsetX = globalXOffset + padX - minX;
+        const flowNodeOffsetY = columnYOffset + padTop - minY;
 
         // Cluster metadata
         const cluster: SubflowCluster = {
