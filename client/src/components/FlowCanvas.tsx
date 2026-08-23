@@ -12,7 +12,7 @@ import {
   ReactFlowProvider,
   BackgroundVariant
 } from '@xyflow/react';
-import { RotateCcw, Move } from 'lucide-react';
+import { RotateCcw, Move, Zap, ZapOff } from 'lucide-react';
 import { TdarrNode } from './nodes/TdarrNode';
 import { GroupNode } from './nodes/GroupNode';
 import { TdarrFlow, CompositeFlowGraph, TdarrFlowNode } from '../types/flow';
@@ -23,6 +23,8 @@ interface FlowCanvasProps {
   isTreeMode: boolean;
   onSelectNode: (node: TdarrFlowNode | null) => void;
   selectedNodeId: string | null;
+  animationsEnabled?: boolean;
+  onToggleAnimations?: () => void;
   onResetTreeLayout?: () => void;
   onUpdateCompositeGraph?: (updatedGraph: CompositeFlowGraph) => void;
 }
@@ -38,6 +40,8 @@ const CanvasInner: React.FC<FlowCanvasProps> = ({
   isTreeMode,
   onSelectNode,
   selectedNodeId,
+  animationsEnabled = true,
+  onToggleAnimations,
   onResetTreeLayout,
   onUpdateCompositeGraph
 }) => {
@@ -79,13 +83,13 @@ const CanvasInner: React.FC<FlowCanvasProps> = ({
           targetHandle: e.targetHandle != null ? String(e.targetHandle) : undefined,
           label: isCross ? e.label : undefined,
           type: 'smoothstep',
-          animated: isCross,
+          animated: animationsEnabled && isCross,
           style: {
             stroke: isCross ? '#06b6d4' : isErr ? '#ef4444' : isFalse ? '#94a3b8' : '#cbd5e1',
             strokeWidth: isCross ? 2.5 : 1.5,
             strokeDasharray: (isCross || isErr || isFalse) ? '4,4' : undefined
           },
-          className: isCross ? 'edge-cross-flow' : undefined
+          className: isCross ? (animationsEnabled ? 'edge-cross-flow' : 'edge-cross-flow-static') : undefined
         };
       });
 
@@ -100,12 +104,9 @@ const CanvasInner: React.FC<FlowCanvasProps> = ({
         id: p.id || `node-${idx}`,
         type: 'tdarrNode',
         position: p.position || { x: 100 + (idx % 3) * 260, y: 120 + Math.floor(idx / 3) * 120 },
-        data: {
-          ...p,
-          flowName: flow.name
-        },
+        data: p,
         selected: p.id === selectedNodeId,
-        draggable: false,
+        draggable: false, // Individual nodes in flow are locked to faithfully represent Tdarr
         selectable: true,
         deletable: false
       }));
@@ -121,6 +122,7 @@ const CanvasInner: React.FC<FlowCanvasProps> = ({
           sourceHandle: e.sourceHandle != null ? String(e.sourceHandle) : '1',
           targetHandle: e.targetHandle != null ? String(e.targetHandle) : undefined,
           type: 'smoothstep',
+          animated: false,
           style: {
             stroke: isErr ? '#ef4444' : isFalse ? '#94a3b8' : '#cbd5e1',
             strokeWidth: 1.5,
@@ -133,81 +135,90 @@ const CanvasInner: React.FC<FlowCanvasProps> = ({
     }
 
     return { initialNodes: [], initialEdges: [] };
-  }, [flow, compositeGraph, isTreeMode, selectedNodeId]);
+  }, [flow, compositeGraph, isTreeMode, selectedNodeId, animationsEnabled]);
 
+  // Sync state with incoming props
   useEffect(() => {
     setNodes(initialNodes);
     setEdges(initialEdges);
+  }, [initialNodes, initialEdges, setNodes, setEdges]);
 
-    const currentId = isTreeMode ? (compositeGraph?.id || 'tree') : (flow?._id || 'none');
-    if (prevFlowIdRef.current !== currentId) {
+  // Auto-fit view when flow changes or view mode toggles
+  useEffect(() => {
+    const currentId = isTreeMode ? 'tree' : (flow ? flow._id : null);
+    if (currentId && currentId !== prevFlowIdRef.current) {
       prevFlowIdRef.current = currentId;
-      setTimeout(() => {
-        fitView({ padding: 0.1, duration: 300 });
-      }, 50);
+      const timer = setTimeout(() => {
+        fitView({ padding: 0.2, duration: 400 });
+      }, 80);
+      return () => clearTimeout(timer);
     }
-  }, [initialNodes, initialEdges, fitView, isTreeMode, flow, compositeGraph]);
+  }, [flow, isTreeMode, fitView]);
 
-  const handleNodeClick = (_: React.MouseEvent, node: Node) => {
-    if (node.type === 'groupNode') return;
-    onSelectNode(node.data as TdarrFlowNode);
-  };
+  // Node selection handlers
+  const handleNodeClick = useCallback(
+    (_: React.MouseEvent, node: Node) => {
+      if (node.type === 'groupNode') return;
 
-  const handlePaneClick = () => {
-    onSelectNode(null);
-  };
-
-  // Sync node positions back to compositeGraph when user drags a flow group or individual node
-  const handleNodeDragStop = useCallback((_: MouseEvent | TouchEvent, node: Node) => {
-    if (isTreeMode && compositeGraph && onUpdateCompositeGraph) {
-      if (node.type === 'groupNode') {
-        const updatedNodes = compositeGraph.nodes.map(n => {
-          if (n.id === node.id) {
-            return { ...n, position: { x: node.position.x, y: node.position.y } };
-          }
-          return n;
-        });
-
-        const updatedClusters = (compositeGraph.clusters || []).map(c => {
-          if (`group-${c.flowId}` === node.id) {
-            return {
-              ...c,
-              bounds: {
-                ...c.bounds,
-                minX: node.position.x,
-                minY: node.position.y,
-                maxX: node.position.x + c.bounds.width,
-                maxY: node.position.y + c.bounds.height
-              }
-            };
-          }
-          return c;
-        });
-
-        onUpdateCompositeGraph({
-          ...compositeGraph,
-          nodes: updatedNodes,
-          clusters: updatedClusters
-        });
-      } else {
-        // Individual node / flow link moved
-        const updatedNodes = compositeGraph.nodes.map(n => {
-          if (n.id === node.id) {
-            return { ...n, position: { x: node.position.x, y: node.position.y } };
-          }
-          return n;
-        });
-
-        onUpdateCompositeGraph({
-          ...compositeGraph,
-          nodes: updatedNodes
-        });
+      const pData = node.data as unknown as TdarrFlowNode;
+      if (pData) {
+        onSelectNode(pData);
       }
+    },
+    [onSelectNode]
+  );
+
+  const handlePaneClick = useCallback(() => {
+    onSelectNode(null);
+  }, [onSelectNode]);
+
+  // Handle dragging flow groups in tree mode
+  const handleNodeDragStop = useCallback((_: MouseEvent | TouchEvent, node: Node) => {
+    if (!isTreeMode || !compositeGraph || !onUpdateCompositeGraph) return;
+
+    if (node.type === 'groupNode') {
+      const flowId = (node.data as any)?.flowId || node.id.replace('group-', '');
+      const prevCluster = compositeGraph.clusters.find(c => c.flowId === flowId);
+      if (!prevCluster) return;
+
+      // Move group node itself
+      const updatedNodes = compositeGraph.nodes.map(n => {
+        if (n.id === node.id) {
+          return { ...n, position: { x: node.position.x, y: node.position.y } };
+        }
+        if (n.parentId === node.id) {
+          return n;
+        }
+        return n;
+      });
+
+      // Update cluster bounds
+      const updatedClusters = compositeGraph.clusters.map(c => {
+        if (c.flowId === flowId) {
+          return {
+            ...c,
+            bounds: {
+              ...c.bounds,
+              minX: node.position.x,
+              minY: node.position.y,
+              maxX: node.position.x + c.bounds.width,
+              maxY: node.position.y + c.bounds.height
+            }
+          };
+        }
+        return c;
+      });
+
+      onUpdateCompositeGraph({
+        ...compositeGraph,
+        nodes: updatedNodes,
+        clusters: updatedClusters
+      });
     }
   }, [isTreeMode, compositeGraph, onUpdateCompositeGraph]);
 
   return (
-    <div className="w-full h-full relative">
+    <div className={`w-full h-full relative ${!animationsEnabled ? 'no-canvas-animations' : ''}`}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -242,6 +253,7 @@ const CanvasInner: React.FC<FlowCanvasProps> = ({
           className="!bottom-6 !left-6"
         />
         <MiniMap
+          nodeStrokeWidth={3}
           nodeColor={(node) => {
             if (node.type === 'groupNode') return (node.data?.color as string) || '#06b6d4';
             const pName = ((node.data?.pluginName as string) || '').toLowerCase();
@@ -254,6 +266,28 @@ const CanvasInner: React.FC<FlowCanvasProps> = ({
           className="!bottom-6 !right-6 !w-48 !h-32 !bg-[#13161f]/95 !border-[#2d3748]"
         />
       </ReactFlow>
+
+      {/* Floating Canvas Animation Toggle Button (Visible in both Web UI and HTML Viewers) */}
+      {onToggleAnimations && (
+        <div className="absolute bottom-6 left-20 z-20 flex items-center gap-1.5 bg-[#121620]/90 backdrop-blur-md border border-[#2d3748] px-2.5 py-1 rounded-lg shadow-xl">
+          <button
+            onClick={onToggleAnimations}
+            className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-semibold transition-all ${
+              animationsEnabled
+                ? 'bg-cyan-950/80 border border-cyan-800 text-cyan-300 hover:bg-cyan-900/80'
+                : 'bg-[#1e2433] border border-[#2d3748] text-slate-400 hover:text-slate-200'
+            }`}
+            title={animationsEnabled ? 'Click to pause/disable line animations' : 'Click to enable line animations'}
+          >
+            {animationsEnabled ? (
+              <Zap className="w-3.5 h-3.5 text-cyan-400 fill-cyan-400/20" />
+            ) : (
+              <ZapOff className="w-3.5 h-3.5 text-slate-500" />
+            )}
+            <span className="text-[11px]">{animationsEnabled ? 'Animations ON' : 'Animations OFF'}</span>
+          </button>
+        </div>
+      )}
 
       {/* Floating Toolbar for Flow Tree Mode (Live Web UI only) */}
       {isTreeMode && onResetTreeLayout && (

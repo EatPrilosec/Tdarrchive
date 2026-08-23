@@ -93,6 +93,17 @@ html, body, #root {
   animation: dash 1s linear infinite;
 }
 
+.edge-cross-flow-static .react-flow__edge-path {
+  stroke: #06b6d4 !important;
+  stroke-width: 2.5 !important;
+  stroke-dasharray: 6 6 !important;
+  animation: none !important;
+}
+
+.no-canvas-animations * {
+  animation: none !important;
+}
+
 @keyframes dash {
   to { stroke-dashoffset: -12; }
 }

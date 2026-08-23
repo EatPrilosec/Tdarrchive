@@ -18,6 +18,7 @@ import {
 const STORAGE_KEY_CONN = 'tdarrchive_conn_config';
 const STORAGE_KEY_FLOWS = 'tdarrchive_cached_flows';
 const STORAGE_KEY_TREE_LAYOUT = 'tdarrchive_tree_layout_positions';
+const STORAGE_KEY_ANIMATIONS = 'tdarrchive_animations_enabled';
 
 const standalone = typeof window !== 'undefined' ? (window as any).TDARRCHIVE_STANDALONE_DATA : null;
 
@@ -64,6 +65,15 @@ export const App: React.FC = () => {
     return null;
   });
 
+  // State: Animation preference
+  const [animationsEnabled, setAnimationsEnabled] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_ANIMATIONS);
+      if (saved !== null) return JSON.parse(saved);
+    } catch {}
+    return true;
+  });
+
   // State: Connection
   const [connection, setConnection] = useState<TdarrConnectionConfig>(() => {
     if (standalone) {
@@ -96,6 +106,17 @@ export const App: React.FC = () => {
   const activeFlow = useMemo(() => {
     return flows.find(f => f._id === activeFlowId) || flows[0] || null;
   }, [flows, activeFlowId]);
+
+  // Toggle Animations
+  const handleToggleAnimations = () => {
+    setAnimationsEnabled(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem(STORAGE_KEY_ANIMATIONS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
 
   // Helper to read cached tree positions
   const getSavedTreeLayout = (): Record<string, { x: number; y: number }> => {
@@ -320,6 +341,8 @@ export const App: React.FC = () => {
           flowsCount={flows.length}
           isStandalone={isStandalone}
           isRefreshing={isRefreshing}
+          animationsEnabled={animationsEnabled}
+          onToggleAnimations={handleToggleAnimations}
           onRefreshFlows={handleRefreshFlows}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onOpenExport={() => setIsExportOpen(true)}
@@ -352,6 +375,8 @@ export const App: React.FC = () => {
             flow={activeFlow}
             compositeGraph={compositeGraph}
             isTreeMode={viewMode === 'tree'}
+            animationsEnabled={animationsEnabled}
+            onToggleAnimations={handleToggleAnimations}
             onSelectNode={setSelectedNode}
             selectedNodeId={selectedNode?.id || null}
             onResetTreeLayout={!isStandalone ? handleResetTreeLayout : undefined}

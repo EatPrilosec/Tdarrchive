@@ -8,7 +8,9 @@ import {
   Sparkles,
   Server,
   PackageCheck,
-  RefreshCw
+  RefreshCw,
+  Zap,
+  ZapOff
 } from 'lucide-react';
 import { TdarrConnectionConfig, ViewMode, TdarrFlow } from '../types/flow';
 
@@ -19,6 +21,8 @@ interface HeaderProps {
   flowsCount: number;
   isStandalone?: boolean;
   isRefreshing?: boolean;
+  animationsEnabled?: boolean;
+  onToggleAnimations?: () => void;
   onRefreshFlows?: () => void;
   onOpenSettings: () => void;
   onOpenExport: () => void;
@@ -33,6 +37,8 @@ export const Header: React.FC<HeaderProps> = ({
   flowsCount,
   isStandalone = false,
   isRefreshing = false,
+  animationsEnabled = true,
+  onToggleAnimations,
   onRefreshFlows,
   onOpenSettings,
   onOpenExport,
@@ -132,6 +138,26 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 <RefreshCw className={`w-3.5 h-3.5 text-cyan-400 ${isRefreshing ? 'animate-spin' : ''}`} />
                 <span>{isRefreshing ? 'Syncing...' : 'Refresh Flows'}</span>
+              </button>
+            )}
+
+            {/* Toggle Animations Button */}
+            {onToggleAnimations && (
+              <button
+                onClick={onToggleAnimations}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 border rounded-md text-xs font-medium transition-all ${
+                  animationsEnabled
+                    ? 'bg-cyan-950/40 border-cyan-800/80 text-cyan-300 hover:bg-cyan-950/70'
+                    : 'bg-[#161b22] border-[#30363d] text-slate-400 hover:text-slate-200 hover:bg-[#21262d]'
+                }`}
+                title={animationsEnabled ? 'Click to disable animations' : 'Click to enable animations'}
+              >
+                {animationsEnabled ? (
+                  <Zap className="w-3.5 h-3.5 text-cyan-400 fill-cyan-400/20" />
+                ) : (
+                  <ZapOff className="w-3.5 h-3.5 text-slate-500" />
+                )}
+                <span>{animationsEnabled ? 'Animations ON' : 'Animations OFF'}</span>
               </button>
             )}
 
