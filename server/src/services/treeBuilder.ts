@@ -218,13 +218,13 @@ export class TreeBuilder {
         const flowInternalWidth = maxX - minX;
         const flowInternalHeight = maxY - minY;
 
-        // Clean, balanced padding around the flow cluster (eliminating empty dead space)
-        const padX = 36;
-        const padTop = 44;
-        const padBottom = 28;
+        // Symmetric, balanced padding around the flow cluster (equal top and bottom padding)
+        const padX = 50;
+        const padTop = 50;
+        const padBottom = 50;
 
-        const clusterWidth = Math.max(flowInternalWidth + padX * 2, 280);
-        const clusterHeight = Math.max(flowInternalHeight + padTop + padBottom, 120);
+        const clusterWidth = Math.max(flowInternalWidth + padX * 2, 300);
+        const clusterHeight = Math.max(flowInternalHeight + padTop + padBottom, 150);
 
         maxColumnWidth = Math.max(maxColumnWidth, clusterWidth);
 
