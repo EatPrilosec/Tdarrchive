@@ -57,11 +57,11 @@ const CanvasInner: React.FC<FlowCanvasProps> = ({
           parentId: n.parentId,
           position: n.position || { x: 0, y: 0 },
           data: n.data || n,
-          style: n.style,
+          style: isGroup ? { ...n.style, pointerEvents: 'none' } : n.style,
           selected: n.id === selectedNodeId,
           draggable: isGroup, // Groups are draggable to move entire flows!
           dragHandle: isGroup ? '.flow-drag-handle' : undefined,
-          selectable: true,
+          selectable: !isGroup,
           deletable: false
         };
       });

@@ -251,7 +251,8 @@ export class TreeBuilder {
           style: {
             width: cluster.bounds.width,
             height: cluster.bounds.height,
-            zIndex: -1
+            zIndex: -1,
+            pointerEvents: 'none'
           },
           data: {
             flowId: flow._id,
@@ -262,7 +263,7 @@ export class TreeBuilder {
             nodeCount: plugins.length,
             priority: flowPriorityMap.get(flow._id)
           },
-          selectable: true,
+          selectable: false,
           draggable: true,
           dragHandle: '.flow-drag-handle'
         });
