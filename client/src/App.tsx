@@ -205,6 +205,8 @@ export const App: React.FC = () => {
             isTreeMode={viewMode === 'tree'}
             onSelectNode={setSelectedNode}
             selectedNodeId={selectedNode?.id || null}
+            onResetTreeLayout={() => refreshFlowTree(flows)}
+            onUpdateCompositeGraph={(updated) => setCompositeGraph(updated)}
           />
         </main>
 

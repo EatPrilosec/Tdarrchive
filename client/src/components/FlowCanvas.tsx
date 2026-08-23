@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect, useRef } from 'react';
+import React, { useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   ReactFlow,
   Background,
@@ -12,6 +12,7 @@ import {
   ReactFlowProvider,
   BackgroundVariant
 } from '@xyflow/react';
+import { RotateCcw, Move } from 'lucide-react';
 import { TdarrNode } from './nodes/TdarrNode';
 import { GroupNode } from './nodes/GroupNode';
 import { TdarrFlow, CompositeFlowGraph, TdarrFlowNode } from '../types/flow';
@@ -22,6 +23,8 @@ interface FlowCanvasProps {
   isTreeMode: boolean;
   onSelectNode: (node: TdarrFlowNode | null) => void;
   selectedNodeId: string | null;
+  onResetTreeLayout?: () => void;
+  onUpdateCompositeGraph?: (updatedGraph: CompositeFlowGraph) => void;
 }
 
 const nodeTypes = {
@@ -34,7 +37,9 @@ const CanvasInner: React.FC<FlowCanvasProps> = ({
   compositeGraph,
   isTreeMode,
   onSelectNode,
-  selectedNodeId
+  selectedNodeId,
+  onResetTreeLayout,
+  onUpdateCompositeGraph
 }) => {
   const { fitView } = useReactFlow();
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
@@ -44,17 +49,22 @@ const CanvasInner: React.FC<FlowCanvasProps> = ({
   // Transform Tdarr flow into ReactFlow nodes & edges
   const { initialNodes, initialEdges } = useMemo(() => {
     if (isTreeMode && compositeGraph) {
-      const rfNodes: Node[] = compositeGraph.nodes.map(n => ({
-        id: n.id,
-        type: n.type || 'tdarrNode',
-        position: n.position || { x: 0, y: 0 },
-        data: n.data || n,
-        style: n.style,
-        selected: n.id === selectedNodeId,
-        draggable: false,
-        selectable: n.type !== 'groupNode',
-        deletable: false
-      }));
+      const rfNodes: Node[] = compositeGraph.nodes.map(n => {
+        const isGroup = n.type === 'groupNode';
+        return {
+          id: n.id,
+          type: n.type || 'tdarrNode',
+          parentId: n.parentId,
+          position: n.position || { x: 0, y: 0 },
+          data: n.data || n,
+          style: n.style,
+          selected: n.id === selectedNodeId,
+          draggable: isGroup, // Groups are draggable to move entire flows!
+          dragHandle: isGroup ? '.flow-drag-handle' : undefined,
+          selectable: true,
+          deletable: false
+        };
+      });
 
       const rfEdges: Edge[] = compositeGraph.edges.map((e, idx) => {
         const isCross = e.id.includes('cross-flow');
@@ -147,6 +157,55 @@ const CanvasInner: React.FC<FlowCanvasProps> = ({
     onSelectNode(null);
   };
 
+  // Sync node positions back to compositeGraph when user drags a flow group or individual node
+  const handleNodeDragStop = useCallback((_: MouseEvent | TouchEvent, node: Node) => {
+    if (isTreeMode && compositeGraph && onUpdateCompositeGraph) {
+      if (node.type === 'groupNode') {
+        const updatedNodes = compositeGraph.nodes.map(n => {
+          if (n.id === node.id) {
+            return { ...n, position: { x: node.position.x, y: node.position.y } };
+          }
+          return n;
+        });
+
+        const updatedClusters = (compositeGraph.clusters || []).map(c => {
+          if (`group-${c.flowId}` === node.id) {
+            return {
+              ...c,
+              bounds: {
+                ...c.bounds,
+                minX: node.position.x,
+                minY: node.position.y,
+                maxX: node.position.x + c.bounds.width,
+                maxY: node.position.y + c.bounds.height
+              }
+            };
+          }
+          return c;
+        });
+
+        onUpdateCompositeGraph({
+          ...compositeGraph,
+          nodes: updatedNodes,
+          clusters: updatedClusters
+        });
+      } else {
+        // Individual node / flow link moved
+        const updatedNodes = compositeGraph.nodes.map(n => {
+          if (n.id === node.id) {
+            return { ...n, position: { x: node.position.x, y: node.position.y } };
+          }
+          return n;
+        });
+
+        onUpdateCompositeGraph({
+          ...compositeGraph,
+          nodes: updatedNodes
+        });
+      }
+    }
+  }, [isTreeMode, compositeGraph, onUpdateCompositeGraph]);
+
   return (
     <div className="w-full h-full relative">
       <ReactFlow
@@ -154,10 +213,11 @@ const CanvasInner: React.FC<FlowCanvasProps> = ({
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onNodeDragStop={handleNodeDragStop}
         nodeTypes={nodeTypes}
         onNodeClick={handleNodeClick}
         onPaneClick={handlePaneClick}
-        nodesDraggable={false}
+        nodesDraggable={isTreeMode} // In tree mode, groups can be moved!
         nodesConnectable={false}
         nodesFocusable={false}
         elementsSelectable={true}
@@ -181,7 +241,7 @@ const CanvasInner: React.FC<FlowCanvasProps> = ({
         />
         <MiniMap
           nodeColor={(node) => {
-            if (node.type === 'groupNode') return 'transparent';
+            if (node.type === 'groupNode') return (node.data?.color as string) || '#06b6d4';
             const pName = ((node.data?.pluginName as string) || '').toLowerCase();
             if (pName === 'comment') return '#1d4ed8';
             if (pName.startsWith('check')) return '#f59e0b';
@@ -192,6 +252,29 @@ const CanvasInner: React.FC<FlowCanvasProps> = ({
           className="!bottom-6 !right-6 !w-48 !h-32 !bg-[#13161f]/95 !border-[#2d3748]"
         />
       </ReactFlow>
+
+      {/* Floating Toolbar for Flow Tree Mode */}
+      {isTreeMode && (
+        <div className="absolute top-4 left-6 flex items-center gap-2 bg-[#121620]/90 backdrop-blur-md border border-[#2d3748] px-3 py-1.5 rounded-lg shadow-xl z-20">
+          <div className="flex items-center gap-1.5 text-xs text-sky-300 font-medium">
+            <Move className="w-3.5 h-3.5 text-sky-400" />
+            <span>Drag flow header badges to shape layout</span>
+          </div>
+          {onResetTreeLayout && (
+            <>
+              <div className="h-3.5 w-px bg-[#2d3748]" />
+              <button
+                onClick={onResetTreeLayout}
+                className="flex items-center gap-1 px-2 py-0.5 bg-[#1e2433] hover:bg-[#2d3748] text-slate-300 hover:text-white rounded text-[11px] font-medium transition-colors"
+                title="Reset to default topological column layout"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Reset Layout</span>
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 };

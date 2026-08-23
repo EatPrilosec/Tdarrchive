@@ -262,20 +262,22 @@ export class TreeBuilder {
             nodeCount: plugins.length,
             priority: flowPriorityMap.get(flow._id)
           },
-          selectable: false,
-          draggable: false
+          selectable: true,
+          draggable: true,
+          dragHandle: '.flow-drag-handle'
         });
 
-        // Add individual nodes with normalized coordinates
+        // Add individual nodes with relative coordinates inside group
         plugins.forEach(node => {
           const namespacedId = `${flow._id}__${node.id}`;
-          const posX = (node.position?.x ?? minX) + flowNodeOffsetX;
-          const posY = (node.position?.y ?? minY) + flowNodeOffsetY;
+          const localX = (node.position?.x ?? minX) - minX + 60;
+          const localY = (node.position?.y ?? minY) - minY + 80;
 
           compositeNodes.push({
             id: namespacedId,
             type: 'tdarrNode',
-            position: { x: posX, y: posY },
+            parentId: `group-${flow._id}`,
+            position: { x: localX, y: localY },
             data: {
               ...node,
               originalId: node.id,

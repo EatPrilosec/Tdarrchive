@@ -71,7 +71,16 @@ router.post('/json', (req: Request, res: Response): void => {
 // Export flow as standalone portable HTML
 router.post('/html', (req: Request, res: Response): void => {
   try {
-    const { flow, flows, rootFlowId, isTreeMode, title } = req.body;
+    const { flow, flows, compositeGraph, rootFlowId, isTreeMode, title } = req.body;
+
+    if (compositeGraph) {
+      const html = htmlExporter.generateCompositeTreeHtml(compositeGraph, { title });
+      const safeTitle = (title || compositeGraph.name).replace(/[^a-zA-Z0-9_-]/g, '_');
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${safeTitle}.html"`);
+      res.send(html);
+      return;
+    }
 
     if (isTreeMode && flows && Array.isArray(flows)) {
       const composite = treeBuilder.buildCompositeMegaGraph(flows, rootFlowId);
@@ -101,14 +110,21 @@ router.post('/html', (req: Request, res: Response): void => {
 // Export flow as screenshot image (PNG / JPEG)
 router.post('/image', async (req: Request, res: Response): Promise<void> => {
   try {
-    const { flow, flows, rootFlowId, isTreeMode, scale, format, quality } = req.body;
+    const { flow, flows, compositeGraph, rootFlowId, isTreeMode, scale, format, quality } = req.body;
     const imgFormat = format === 'jpeg' ? 'jpeg' : 'png';
     const scaleFactor = Number(scale) || 2;
 
     let imageBuffer: Buffer;
     let safeName: string;
 
-    if (isTreeMode && flows && Array.isArray(flows)) {
+    if (compositeGraph) {
+      imageBuffer = await screenshotRenderer.renderCompositeTreeScreenshot(compositeGraph, {
+        scale: scaleFactor,
+        format: imgFormat,
+        quality: Number(quality) || 90
+      });
+      safeName = (compositeGraph.name || 'Tdarr_Flow_Tree').replace(/[^a-zA-Z0-9_-]/g, '_');
+    } else if (isTreeMode && flows && Array.isArray(flows)) {
       const composite = treeBuilder.buildCompositeMegaGraph(flows, rootFlowId);
       imageBuffer = await screenshotRenderer.renderCompositeTreeScreenshot(composite, {
         scale: scaleFactor,

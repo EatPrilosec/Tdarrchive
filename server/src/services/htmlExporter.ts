@@ -159,8 +159,8 @@ export class HtmlExporter {
       position: absolute;
       top: 0;
       left: 0;
-      width: 40000px;
-      height: 40000px;
+      width: 60000px;
+      height: 60000px;
       pointer-events: none;
       z-index: 10;
     }
@@ -190,21 +190,25 @@ export class HtmlExporter {
     /* Cluster Boxes */
     .cluster-box {
       position: absolute;
-      border-radius: 12px;
+      border-radius: 16px;
       border: 2px dashed;
-      background: rgba(15, 23, 42, 0.4);
+      background: rgba(15, 23, 42, 0.45);
       pointer-events: none;
       z-index: 5;
     }
     .cluster-header {
       position: absolute;
-      top: -12px;
-      left: 18px;
-      padding: 3px 10px;
-      border-radius: 6px;
-      font-size: 11px;
+      top: -14px;
+      left: 20px;
+      padding: 4px 12px;
+      border-radius: 8px;
+      font-size: 12px;
       font-weight: 700;
       color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.6);
     }
     /* Compact Tdarr Node Cards */
     .tdarr-node {
@@ -435,6 +439,26 @@ export class HtmlExporter {
     let dragStart = { x: 0, y: 0 };
     let selectedNodeId = null;
 
+    // Group lookup map for relative coordinate calculation
+    const groupMap = {};
+    (GRAPH_DATA.nodes || []).forEach(n => {
+      if (n.type === 'groupNode') {
+        groupMap[n.id] = n;
+      }
+    });
+
+    function getNodeAbsolutePos(node) {
+      if (!node) return { x: 0, y: 0 };
+      let x = node.position ? (node.position.x || 0) : 0;
+      let y = node.position ? (node.position.y || 0) : 0;
+      if (node.parentId && groupMap[node.parentId]) {
+        const parent = groupMap[node.parentId];
+        x += (parent.position ? (parent.position.x || 0) : 0);
+        y += (parent.position ? (parent.position.y || 0) : 0);
+      }
+      return { x, y };
+    }
+
     const viewport = document.getElementById('viewport');
     const canvas = document.getElementById('canvas');
     const svgLayer = document.getElementById('connectionsLayer');
@@ -456,10 +480,14 @@ export class HtmlExporter {
       if (!GRAPH_DATA.clusters || GRAPH_DATA.clusters.length === 0) return;
 
       GRAPH_DATA.clusters.forEach(c => {
+        const group = groupMap['group-' + c.flowId];
+        const left = group && group.position ? group.position.x : c.bounds.minX;
+        const top = group && group.position ? group.position.y : c.bounds.minY;
+
         const box = document.createElement('div');
         box.className = 'cluster-box';
-        box.style.left = c.bounds.minX + 'px';
-        box.style.top = c.bounds.minY + 'px';
+        box.style.left = left + 'px';
+        box.style.top = top + 'px';
         box.style.width = c.bounds.width + 'px';
         box.style.height = c.bounds.height + 'px';
         box.style.borderColor = c.color;
@@ -492,10 +520,11 @@ export class HtmlExporter {
         const isGoTo = pluginName === 'gotoflow' || nameLower.includes('go to');
         const isCheck = pluginName.startsWith('check') || pluginName.includes('decider') || name.endsWith('?') || nameLower.includes('is mkv') || nameLower.includes('show or movie');
 
+        const absPos = getNodeAbsolutePos(node);
         const card = document.createElement('div');
         card.id = 'dom-node-' + node.id;
-        card.style.left = node.position.x + 'px';
-        card.style.top = node.position.y + 'px';
+        card.style.left = absPos.x + 'px';
+        card.style.top = absPos.y + 'px';
 
         if (isComment) {
           card.className = 'tdarr-node tdarr-node-comment';
@@ -522,11 +551,9 @@ export class HtmlExporter {
           card.style.borderColor = border;
           card.innerHTML = '<span class="node-icon-box">' + icon + '</span><span class="node-text">' + escapeText(name) + '</span>';
 
-          if (!isInput) {
-            const inHandle = document.createElement('div');
-            inHandle.className = 'handle-dot handle-top';
-            card.appendChild(inHandle);
-          }
+          const inHandle = document.createElement('div');
+          inHandle.className = 'handle-dot handle-top';
+          card.appendChild(inHandle);
 
           const errHandle = document.createElement('div');
           errHandle.className = 'handle-dot handle-right-err';
@@ -581,25 +608,27 @@ export class HtmlExporter {
           const isErr = edge.sourceHandle === 'err1';
           const isFalse = edge.sourceHandle === '2';
 
-          let sx = sourceNode.position.x + sW / 2;
-          let sy = sourceNode.position.y + sH;
+          const sPos = getNodeAbsolutePos(sourceNode);
+          const tPos = getNodeAbsolutePos(targetNode);
+
+          let sx = sPos.x + sW / 2;
+          let sy = sPos.y + sH;
 
           if (isErr) {
-            sx = sourceNode.position.x + sW;
-            sy = sourceNode.position.y + sH / 2;
+            sx = sPos.x + sW;
+            sy = sPos.y + sH / 2;
           } else if (isFalse) {
-            sx = sourceNode.position.x + sW * 0.7;
+            sx = sPos.x + sW * 0.7;
           } else if (edge.sourceHandle === '1' && sDom && sDom.querySelector('.handle-bottom-true')) {
-            sx = sourceNode.position.x + sW * 0.3;
+            sx = sPos.x + sW * 0.3;
           }
 
-          const tx = targetNode.position.x + tW / 2;
-          const ty = targetNode.position.y;
+          const tx = tPos.x + tW / 2;
+          const ty = tPos.y;
 
           const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
           let d = '';
           if (isErr) {
-            // Error path starts on right side and steps down
             const midX = sx + 40;
             const midY = (sy + ty) / 2;
             d = \`M \${sx} \${sy} L \${midX} \${sy} L \${midX} \${midY} L \${tx} \${midY} L \${tx} \${ty}\`;
@@ -644,19 +673,20 @@ export class HtmlExporter {
 
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       nodes.forEach(n => {
-        minX = Math.min(minX, n.position.x);
-        minY = Math.min(minY, n.position.y);
-        maxX = Math.max(maxX, n.position.x + 240);
-        maxY = Math.max(maxY, n.position.y + 60);
+        const absPos = getNodeAbsolutePos(n);
+        minX = Math.min(minX, absPos.x);
+        minY = Math.min(minY, absPos.y);
+        maxX = Math.max(maxX, absPos.x + 240);
+        maxY = Math.max(maxY, absPos.y + 60);
       });
 
-      const pad = 80;
+      const pad = 120;
       const w = maxX - minX + pad * 2;
       const h = maxY - minY + pad * 2;
       const vw = viewport.clientWidth;
       const vh = viewport.clientHeight;
 
-      const scale = Math.min(Math.max(Math.min(vw / w, vh / h), 0.05), 1.2);
+      const scale = Math.min(Math.max(Math.min(vw / w, vh / h), 0.02), 1.2);
       transform.scale = scale;
       transform.x = (vw - (maxX - minX) * scale) / 2 - minX * scale;
       transform.y = (vh - (maxY - minY) * scale) / 2 - minY * scale;
@@ -687,7 +717,7 @@ export class HtmlExporter {
         e.preventDefault();
         const factor = 1.1;
         const delta = e.deltaY < 0 ? factor : 1 / factor;
-        const newScale = Math.min(Math.max(transform.scale * delta, 0.02), 3.0);
+        const newScale = Math.min(Math.max(transform.scale * delta, 0.01), 3.0);
         const rect = viewport.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
@@ -703,7 +733,7 @@ export class HtmlExporter {
         applyTransform();
       });
       document.getElementById('btnZoomOut').addEventListener('click', () => {
-        transform.scale = Math.max(transform.scale / 1.25, 0.02);
+        transform.scale = Math.max(transform.scale / 1.25, 0.01);
         applyTransform();
       });
       document.getElementById('btnFit').addEventListener('click', fitView);

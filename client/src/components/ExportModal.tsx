@@ -129,6 +129,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         body: JSON.stringify({
           flow: viewMode === 'single' ? flow : undefined,
           flows: viewMode === 'tree' ? flows : undefined,
+          compositeGraph: viewMode === 'tree' ? compositeGraph : undefined,
           isTreeMode: viewMode === 'tree',
           scale: imageScale,
           format: imageFormat
@@ -178,6 +179,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       const blob = await res.blob();
       const filename = `${(flow?.name || 'tdarr_flow_viewer').replace(/[^a-zA-Z0-9_-]/g, '_')}.html`;
       downloadBlob(blob, filename);
+      triggerSuccessConfetti();
     } catch (err) {
       console.error(err);
     } finally {
@@ -193,6 +195,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          compositeGraph: compositeGraph || undefined,
           flows,
           isTreeMode: true,
           title: compositeGraph?.name || 'Tdarr Flow Tree Mega-Viewer'
@@ -201,6 +204,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       const blob = await res.blob();
       const filename = `Tdarr_Flow_Tree_MegaViewer.html`;
       downloadBlob(blob, filename);
+      triggerSuccessConfetti();
     } catch (err) {
       console.error(err);
     } finally {
